@@ -1,0 +1,34 @@
+node_modules
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+
+# Tests
+tests/
+jest.config.js
+debugCreateCompany.js
+test_output*.txt
+err.txt
+coverage/
+
+# Git & IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Docker files (prevent recursive copy)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation & artifacts
+AI-Docs/
+*.md
+!prisma/migrations/**/*.sql
+
+# OS files
+Thumbs.db
+.DS_Store
