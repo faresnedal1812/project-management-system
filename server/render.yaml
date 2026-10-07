@@ -64,7 +64,7 @@ services:
       - key: CORS_ORIGIN
         value: "*"
       - key: CLIENT_URL
-        value: https://project-management-system-api.onrender.com
+        sync: false
 
       # Rate Limiting
       - key: RATE_LIMIT_WINDOW_MS
