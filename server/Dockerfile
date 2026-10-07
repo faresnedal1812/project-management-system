@@ -40,9 +40,9 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
-# Install only production dependencies
+# Install production dependencies and the Prisma CLI (needed for npx prisma migrate deploy)
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev && npm install prisma && npm cache clean --force
 
 # Copy generated Prisma Client from build stage
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma

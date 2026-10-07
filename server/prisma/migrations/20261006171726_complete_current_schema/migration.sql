@@ -168,7 +168,7 @@ CREATE INDEX "tasks_projectId_status_idx" ON "tasks"("projectId", "status");
 CREATE INDEX "tasks_createdAt_idx" ON "tasks"("createdAt");
 
 -- AddForeignKey
-ALTER TABLE "projects" ADD CONSTRAINT "projects_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "clients"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "projects" ADD CONSTRAINT "projects_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "clients"("id") ON DELETE SET NULL ON UPDATE CASCADE NOT VALID;
 
 -- AddForeignKey
 ALTER TABLE "clients" ADD CONSTRAINT "clients_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
