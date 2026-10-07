@@ -97,6 +97,7 @@ const env = {
   redisHost: process.env.REDIS_HOST || "127.0.0.1",
   redisPort: parseInt(process.env.REDIS_PORT, 10) || 6379,
   redisPassword: process.env.REDIS_PASSWORD || undefined,
+  redisUrl: process.env.REDIS_URL || undefined,
 };
 
 export default env;
