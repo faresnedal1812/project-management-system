@@ -88,6 +88,9 @@ const env = {
   // Client Frontend URL (for verification & password reset links)
   clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
 
+  // Backend URL
+  apiUrl: process.env.API_URL || "http://localhost:5000",
+
   // Cloudinary (Task Attachments – Section 8)
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,

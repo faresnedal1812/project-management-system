@@ -65,6 +65,8 @@ services:
         value: "*"
       - key: CLIENT_URL
         sync: false
+      - key: API_URL
+        sync: false
 
       # Rate Limiting
       - key: RATE_LIMIT_WINDOW_MS
