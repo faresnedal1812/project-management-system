@@ -19,8 +19,8 @@ services:
     runtime: docker
     region: frankfurt
     plan: free
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerfilePath: ./server/Dockerfile # not => ./Dockerfile (Render resolves these paths from the repository root.)
+    dockerContext: ./server # not => .
     healthCheckPath: /api/v1/health
     envVars:
       # Application
