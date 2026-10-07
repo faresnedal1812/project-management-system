@@ -98,7 +98,7 @@ databases:
     plan: free
     region: frankfurt
     databaseName: project_management_system_db
-    user: postgres
+    user: pms_user
 
 # redis:
 #   # ── Managed Redis ──────────────────────────────────────────
