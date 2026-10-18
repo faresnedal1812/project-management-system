@@ -239,7 +239,9 @@ export const addMember = async (companyId, userId, role = "MEMBER") => {
  * RACE CONDITION FIX:
  * Same TOCTOU pattern as removeMember — two concurrent demotion
  * requests could both count 2 owners and both demote, leaving 0.
- * We use SELECT ... FOR UPDATE to serialize concurrent role changes.
+ * We use an interactive transaction with SELECT ... FOR UPDATE
+ * to acquire a row-level lock on the company row before counting, ensuring
+ * only one request can proceed at a time.
  */
 export const updateMemberRole = async (companyId, userId, newRole) => {
   await findCompanyOrFail(companyId);
@@ -252,7 +254,7 @@ export const updateMemberRole = async (companyId, userId, newRole) => {
 
     // Guard: do not allow demoting the last OWNER.
     if (member.role === "OWNER" && newRole !== "OWNER") {
-      // Lock all OWNER rows for this company to serialize concurrent demotions
+      // Lock the company row to serialize concurrent demotions
       await tx.$queryRaw`
         SELECT id
         FROM "Company"
@@ -303,8 +305,8 @@ export const updateMemberRole = async (companyId, userId, newRole) => {
  * RACE CONDITION FIX:
  * Without a transaction, two concurrent requests could both count 2 owners,
  * both pass the guard, and both delete — leaving the company with 0 owners.
- * We use a serializable interactive transaction with SELECT ... FOR UPDATE
- * to acquire a row-level lock on all OWNER rows before counting, ensuring
+ * We use an interactive transaction with SELECT ... FOR UPDATE
+ * to acquire a row-level lock on the company row before counting, ensuring
  * only one request can proceed at a time.
  */
 export const removeMember = async (companyId, userId) => {
@@ -317,11 +319,11 @@ export const removeMember = async (companyId, userId) => {
     if (!member) throw ApiError.notFound("Member not found in this company");
 
     if (member.role === "OWNER") {
-      // Lock all OWNER rows for this company to serialize concurrent removals
+      // Lock the company row to serialize concurrent removals
       await tx.$queryRaw`
         SELECT id
         FROM "Company"
-        WHERE id = '123'
+        WHERE id = ${companyId}
         FOR UPDATE;
       `;
 
