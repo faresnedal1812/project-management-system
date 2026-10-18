@@ -235,34 +235,51 @@ export const addMember = async (companyId, userId, role = "MEMBER") => {
  * WHY PROTECT THE LAST OWNER:
  * A company must always have at least one OWNER.
  * Demoting the last owner would leave the company admin-less.
+ *
+ * RACE CONDITION FIX:
+ * Same TOCTOU pattern as removeMember — two concurrent demotion
+ * requests could both count 2 owners and both demote, leaving 0.
+ * We use SELECT ... FOR UPDATE to serialize concurrent role changes.
  */
 export const updateMemberRole = async (companyId, userId, newRole) => {
   await findCompanyOrFail(companyId);
 
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-  });
-  if (!member) throw ApiError.notFound("Member not found in this company");
-
-  // Guard: do not allow demoting the last OWNER.
-  if (member.role === "OWNER" && newRole !== "OWNER") {
-    const ownerCount = await prisma.companyMember.count({
-      where: { companyId, role: "OWNER" },
+  const updated = await prisma.$transaction(async (tx) => {
+    const member = await tx.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
     });
-    if (ownerCount <= 1) {
-      throw ApiError.badRequest(
-        "Cannot demote the last OWNER. Assign another OWNER first.",
-      );
-    }
-  }
+    if (!member) throw ApiError.notFound("Member not found in this company");
 
-  const updated = await prisma.companyMember.update({
-    where: { userId_companyId: { userId, companyId } },
-    data: { role: newRole },
-    select: MEMBER_SELECT,
+    // Guard: do not allow demoting the last OWNER.
+    if (member.role === "OWNER" && newRole !== "OWNER") {
+      // Lock all OWNER rows for this company to serialize concurrent demotions
+      await tx.$queryRaw`
+        SELECT id
+        FROM "Company"
+        WHERE id = ${companyId}
+        FOR UPDATE;
+      `;
+
+      const ownerCount = await tx.companyMember.count({
+        where: { companyId, role: "OWNER" },
+      });
+      if (ownerCount <= 1) {
+        throw ApiError.badRequest(
+          "Cannot demote the last OWNER. Assign another OWNER first.",
+        );
+      }
+    }
+
+    const result = await tx.companyMember.update({
+      where: { userId_companyId: { userId, companyId } },
+      data: { role: newRole },
+      select: MEMBER_SELECT,
+    });
+
+    return { result, previousRole: member.role };
   });
 
-  if (member.role !== newRole) {
+  if (updated.previousRole !== newRole) {
     logAudit({
       companyId,
       actorId: null,
@@ -270,40 +287,57 @@ export const updateMemberRole = async (companyId, userId, newRole) => {
       entityId: userId,
       action: auditActions.MEMBER_ROLE_UPDATED,
       changes: {
-        role: { from: member.role, to: newRole },
+        role: { from: updated.previousRole, to: newRole },
       },
     });
   }
 
   logger.info({ companyId, userId, newRole }, "Member role updated");
-  return updated;
+  return updated.result;
 };
 
 /**
  * Removes a user from a company.
  * An OWNER cannot be removed while they are the last owner.
+ *
+ * RACE CONDITION FIX:
+ * Without a transaction, two concurrent requests could both count 2 owners,
+ * both pass the guard, and both delete — leaving the company with 0 owners.
+ * We use a serializable interactive transaction with SELECT ... FOR UPDATE
+ * to acquire a row-level lock on all OWNER rows before counting, ensuring
+ * only one request can proceed at a time.
  */
 export const removeMember = async (companyId, userId) => {
   await findCompanyOrFail(companyId);
 
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-  });
-  if (!member) throw ApiError.notFound("Member not found in this company");
-
-  if (member.role === "OWNER") {
-    const ownerCount = await prisma.companyMember.count({
-      where: { companyId, role: "OWNER" },
+  await prisma.$transaction(async (tx) => {
+    const member = await tx.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
     });
-    if (ownerCount <= 1) {
-      throw ApiError.badRequest(
-        "Cannot remove the last OWNER. Assign another OWNER first.",
-      );
-    }
-  }
+    if (!member) throw ApiError.notFound("Member not found in this company");
 
-  await prisma.companyMember.delete({
-    where: { userId_companyId: { userId, companyId } },
+    if (member.role === "OWNER") {
+      // Lock all OWNER rows for this company to serialize concurrent removals
+      await tx.$queryRaw`
+        SELECT id
+        FROM "Company"
+        WHERE id = '123'
+        FOR UPDATE;
+      `;
+
+      const ownerCount = await tx.companyMember.count({
+        where: { companyId, role: "OWNER" },
+      });
+      if (ownerCount <= 1) {
+        throw ApiError.badRequest(
+          "Cannot remove the last OWNER. Assign another OWNER first.",
+        );
+      }
+    }
+
+    await tx.companyMember.delete({
+      where: { userId_companyId: { userId, companyId } },
+    });
   });
 
   logger.info({ companyId, userId }, "Member removed from company");
